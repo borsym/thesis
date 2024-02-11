@@ -141,32 +141,47 @@ class Visualizer:
         self.person_skeleton_cloud = o3d.geometry.PointCloud()
         keypoint_color = [0, 1, 0]
         self.person_skeleton_cloud.paint_uniform_color(keypoint_color)
-
         self.connections = [(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11), (6, 12), (5, 6), (5, 7), (6, 8),
                             (7, 9), (8, 10), (1, 2), (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6)]
-        self.lines = o3d.geometry.LineSet()
-        self.lines.points = self.person_skeleton_cloud.points
-        self.lines.lines = o3d.utility.Vector2iVector(self.connections)
-        self.lines.paint_uniform_color([0, 1, 0])
+        self.person_lines = o3d.geometry.LineSet()
+        self.person_lines.points = self.person_skeleton_cloud.points
+        self.person_lines.lines = o3d.utility.Vector2iVector(self.connections)
+        self.person_lines.paint_uniform_color([0, 1, 0])
+
+        self.robot_conections = self.get_skeleton_connection_robot()
+        self.robot_skeleton_cloud = o3d.geometry.PointCloud()
+        keypoint_color = [0, 0, 1]
+        self.robot_skeleton_cloud.paint_uniform_color(keypoint_color)
+
+        self.robot_lines = o3d.geometry.LineSet()
+        self.robot_lines.points = self.robot_skeleton_cloud.points
+        self.robot_lines.lines = o3d.utility.Vector2iVector(
+            self.robot_conections)
+        self.robot_lines.paint_uniform_color([0, 0, 1])
 
         self.visualizer.add_geometry(mesh)
-        self.visualizer.add_geometry(self.lines)
+        self.visualizer.add_geometry(self.person_lines)
         self.visualizer.add_geometry(self.person_skeleton_cloud)
+        self.visualizer.add_geometry(self.robot_lines)
+        self.visualizer.add_geometry(self.robot_skeleton_cloud)
 
         render_option = self.visualizer.get_render_option()
         render_option.mesh_show_back_face = True
         render_option.light_on = False
 
-        self.sphere_list = []
-        for _, _ in enumerate(range(17)):
-            sphere = o3d.geometry.TriangleMesh.create_sphere(
-                radius=0.05)  # Adjust radius for size
-            sphere.translate([0, 0, 0])
-            sphere.paint_uniform_color([1, 0, 0])
-            self.sphere_list.append(sphere)
-            self.visualizer.add_geometry(sphere)
+        # self.sphere_list = []
+        # for _, _ in enumerate(range(17)):  # 34?
+        #     sphere = o3d.geometry.TriangleMesh.create_sphere(
+        #         radius=0.05)  # Adjust radius for size
+        #     sphere.translate([0, 0, 0])
+        #     sphere.paint_uniform_color([1, 0, 0])
+        #     self.sphere_list.append(sphere)
+        #     self.visualizer.add_geometry(sphere)
 
-        time.sleep(10)
+    def get_skeleton_connection_robot(self):
+        with open("D:/thesis/realtime_update/robot-keypoints-connection.json", 'r') as file:
+            annotations_data = json.load(file)
+        return annotations_data['skeleton']
 
     def update_open3d(self):
         self.visualizer.poll_events()
@@ -184,28 +199,32 @@ class Visualizer:
         sphere.compute_vertex_normals()
         return sphere
 
-    def run(self, points_3d):
+    def run_human(self, points_3d):
         ### 3d open visualization jon ##
         self.person_skeleton_cloud.points = o3d.utility.Vector3dVector(
             points_3d)
-        self.lines.points = o3d.utility.Vector3dVector(points_3d)
+        self.person_lines.points = o3d.utility.Vector3dVector(points_3d)
 
         self.visualizer.update_geometry(self.person_skeleton_cloud)
-        self.visualizer.update_geometry(self.lines)
+        self.visualizer.update_geometry(self.person_lines)
 
-        for point_idx, point in enumerate(range(17)):
-            if point_idx > len(self.person_skeleton_cloud.points):
-                sphere = self.sphere_list[point_idx]
-                self.update_sphere_position(sphere, np.array([0, 0, 0]))
-            else:
-                sphere = self.sphere_list[point_idx]
-                self.update_sphere_position(sphere, np.array(
-                    self.person_skeleton_cloud.points[point_idx]))
-            self.visualizer.update_geometry(sphere)
+        # for point_idx, point in enumerate(range(17)):
+        #     if point_idx > len(self.person_skeleton_cloud.points):
+        #         sphere = self.sphere_list[point_idx]
+        #         self.update_sphere_position(sphere, np.array([0, 0, 0]))
+        #     else:
+        #         sphere = self.sphere_list[point_idx]
+        #         self.update_sphere_position(sphere, np.array(
+        #             self.person_skeleton_cloud.points[point_idx]))
+        #     self.visualizer.update_geometry(sphere)
 
-        self.update_open3d()
+    def run_robot(self, points_3d):
+        self.robot_skeleton_cloud.points = o3d.utility.Vector3dVector(
+            points_3d)
+        self.robot_lines.points = o3d.utility.Vector3dVector(points_3d)
 
-
+        self.visualizer.update_geometry(self.robot_skeleton_cloud)
+        self.visualizer.update_geometry(self.robot_lines)
 
 
 class HumanDetector:
@@ -351,8 +370,29 @@ class RobotDetector:
         self.draw_keypoints(image, points)
         self.draw_skeleton(image, points)
         return image
-    
-    def triangulation(self, results0, results1, P0, P1)
+
+    def get_pose_xyz(self, frame):
+        pose_set = []
+        for x, y, z in zip(frame[0], frame[1], frame[2]):
+            # divide by 1000 if camera focal length is given in mm
+            pose_set.append(np.asarray([x, y, z])/1000)
+        return np.asarray(pose_set)
+
+    def triangulation(self, results0, results1, P0, P1, points0, points1):
+        if len(points0) == 0 or len(points1) == 0:
+            return []
+        left_pose = max(results0[0].keypoints,
+                        key=lambda item: np.mean(item.conf.cpu().numpy()))
+        right_pose = max(results1[0].keypoints,
+                         key=lambda item: np.mean(item.conf.cpu().numpy()))
+
+        points_4d_hom = cv2.triangulatePoints(P0, P1, np.asarray(left_pose.xy[0].cpu().numpy()).squeeze().T,
+                                              np.asarray(right_pose.xy[0].cpu().numpy()).squeeze().T)
+
+        points_3d = points_4d_hom[:3, :] / points_4d_hom[3, :]
+        points_3d = self.get_pose_xyz(points_3d)
+
+        return points_3d
 
 
 class VideoManager:
@@ -394,6 +434,12 @@ class VideoManager:
             if not ret0 or not ret1:
                 break
 
+            # human detection
+            result0, result1, frame0, frame1 = self.human_detector.inference(
+                frame0, frame1)
+            human_points_3d = self.human_detector.triangulation(
+                result0, result1, self.Proj_matrix0, self.Proj_matrix1)
+
             # robot detection
             result_frame0 = self.robot_detector.inference(frame0)
             result_frame1 = self.robot_detector.inference(frame1)
@@ -401,20 +447,14 @@ class VideoManager:
             points0 = self.robot_detector.get_keypoints(result_frame0)
             points1 = self.robot_detector.get_keypoints(result_frame1)
 
-            self.robot_detector.draw(frame0, points0)
-            self.robot_detector.draw(frame1, points1)
+            robot_points_3d = self.robot_detector.triangulation(
+                result_frame0, result_frame1, self.Proj_matrix0, self.Proj_matrix1, points0, points1)
 
-            # human detection
-            # result0, result1, frame0, frame1 = self.human_detector.inference(
-            #     frame0, frame1)
-            # points_3d = self.human_detector.triangulation(
-            #     result0, result1, self.Proj_matrix0, self.Proj_matrix1)
+            self.open3d_visualizer.run_human(human_points_3d)
+            self.open3d_visualizer.run_robot(robot_points_3d)
 
-            ######### self.open3d_visualizer.run(points_3d)
-            
-            
-            # self.update_cv2_windows2("Camera 0", frame0)
-            # self.update_cv2_windows2("Camera 1", frame1)
+            self.open3d_visualizer.update_open3d()
+
 
             elapsed_time = time.time() - start_time
             # Calculate frames per second
@@ -432,97 +472,6 @@ class VideoManager:
         resized_frame = cv2.resize(image, (800, 500))
         cv2.imshow(window_name, resized_frame)
         cv2.waitKey(1)
-
-
-# class CameraManager:
-#     def __init__(self, camera_int_params, camera_ext_params):
-#         self.camera_threads = []
-
-#         init_default_scope('mmdet')
-#         det_config = '/home/gables/Programs/mmpose/projects/rtmpose/rtmdet/person/rtmdet_nano_320-8xb32_coco-person.py'
-#         det_checkpoint = 'https://download.openmmlab.com/mmpose/v1/projects/rtmpose/rtmdet_nano_8xb32-100e_coco-obj365-person-05d8511e.pth'
-
-#         # model_cfg = '/home/gables/Programs/mmpose/configs/body_2d_keypoint/rtmpose/coco/rtmpose-l_8xb256-420e_coco-256x192.py'
-#         # ckpt = 'https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmpose-l_simcc-coco_pt-aic-coco_420e-256x192-1352a4d2_20230127.pth'
-
-#         model_cfg = '/home/gables/Programs/mmpose/projects/rtmpose/rtmpose/body_2d_keypoint/rtmpose-m_8xb256-420e_coco-256x192.py'
-#         ckpt = 'https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmpose-m_simcc-aic-coco_pt-aic-coco_420e-256x192-63eb25f7_20230126.pth '
-#         device = 'cuda'
-#         init_default_scope('mmpose')
-#         self.model = init_pose_estimator(model_cfg, ckpt, device=device,
-#                                          cfg_options=dict(model=dict(test_cfg=dict(output_heatmaps=False))))
-
-#         # Initialize detection model
-#         init_default_scope('mmdet')
-#         self.detection_model = init_detector(
-#             det_config, det_checkpoint, device=device)
-#         mesh = o3d.io.read_triangle_mesh("meshes/temp.ply")
-
-#         self.mtx0_int = np.asarray(camera_int_params['cam0_K'])
-#         self.mtx1_int = np.asarray(camera_int_params['cam1_K'])
-#         self.dist0_int = np.asarray(camera_int_params['cam0_dist'])
-#         self.dist1_int = np.asarray(camera_int_params['cam1_dist'])
-
-#         self.R = np.asarray(camera_ext_params['R'])
-#         self.T = np.asarray(camera_ext_params['T'])
-
-#         self.Proj_matrix0 = np.dot(
-#             self.mtx0_int, np.hstack((np.eye(3), np.zeros((3, 1)))))
-#         self.Proj_matrix1 = np.dot(
-#             self.mtx1_int, np.hstack((self.R, self.T.reshape(-1, 1))))
-
-#     def start_cameras(self, num_cameras):
-#         for i in range(num_cameras):
-#             cv2.namedWindow(f'Camera {i}', cv2.WINDOW_NORMAL)
-#             cv2.resizeWindow(f'Camera {i}', 800, 500)
-
-#     def update_cv2_windows(self):
-#         for index, queue in camera_queues.items():
-#             if not queue.empty():
-#                 frame = queue.get()
-#                 window_name = f'Camera {index}'
-#                 # Resize and show the frame as needed
-#                 resized_frame = cv2.resize(frame, (800, 500))
-#                 cv2.imshow(window_name, resized_frame)
-#                 cv2.waitKey(1)
-
-#     def update_cv2_windows2(self, window_name, image):
-#         # Resize and show the frame as needed
-#         resized_frame = cv2.resize(image, (800, 500))
-#         cv2.imshow(window_name, resized_frame)
-#         cv2.waitKey(1)
-
-#     def run_advanced(self):
-#         while True:
-#             start_time = time.time()
-#             image_list = []
-#             for index, queue in camera_queues.items():
-#                 image_list.append(queue.get())
-#             if len(image_list) > 1:
-#                 # img0_undistorted = cv2.undistort(image_list[0], self.mtx0_int, self.dist0_int, None, self.mtx0_int)
-#                 # img1_undistorted = cv2.undistort(image_list[1], self.mtx1_int, self.dist1_int, None, self.mtx1_int)
-#                 results0, results1 = neural_network_process(
-#                     self.detection_model, self.model, image_list[0], image_list[1], self.connections)
-#                 run_triangulation(results0, results1, self.Proj_matrix0, self.Proj_matrix1, self.skeleton_cloud,
-#                                   self.lines, self.sphere_list, self.vis)
-#             # self.update_cv2_windows()  # Update OpenCV windows here
-#             self.update_cv2_windows2("Camera 0", image_list[0])
-#             self.update_cv2_windows2("Camera 1", image_list[1])
-#             self.vis.poll_events()
-#             self.vis.update_renderer()
-
-#             elapsed_time = time.time() - start_time
-#             # Calculate frames per second
-#             fps = 1 / elapsed_time
-
-#             # Print FPS every 10 frames
-#             print(f"FPS: {fps:.2f}")
-
-#     def run(self):
-#         self.start_cameras(2)  # Assuming two cameras
-#         self.run_advanced()   # This will also handle OpenCV updates
-#         self.stop_cameras()
-#         cv2.destroyAllWindows()
 
 
 def main():
