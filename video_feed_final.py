@@ -125,7 +125,90 @@ def calibrate_extrinsics(camera_int_params, chessboard_size=(9, 6), square_size=
     return R, T
 
 
-class humanDetector:
+class Visualizer:
+    def __init__(self) -> None:
+        mesh = o3d.io.read_triangle_mesh(
+            "D:/thesis/realtime_update/meshes/beanbag.ply")
+        if not mesh.has_vertex_colors():
+            mesh.vertex_colors = o3d.utility.Vector3dVector(
+                [[0.5, 0.5, 0.5] for _ in range(len(mesh.vertices))])
+        if not mesh.has_vertex_normals():
+            mesh.compute_vertex_normals()
+
+        self.visualizer = o3d.visualization.Visualizer()
+        self.visualizer.create_window()
+
+        self.person_skeleton_cloud = o3d.geometry.PointCloud()
+        keypoint_color = [0, 1, 0]
+        self.person_skeleton_cloud.paint_uniform_color(keypoint_color)
+
+        self.connections = [(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11), (6, 12), (5, 6), (5, 7), (6, 8),
+                            (7, 9), (8, 10), (1, 2), (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6)]
+        self.lines = o3d.geometry.LineSet()
+        self.lines.points = self.person_skeleton_cloud.points
+        self.lines.lines = o3d.utility.Vector2iVector(self.connections)
+        self.lines.paint_uniform_color([0, 1, 0])
+
+        self.visualizer.add_geometry(mesh)
+        self.visualizer.add_geometry(self.lines)
+        self.visualizer.add_geometry(self.person_skeleton_cloud)
+
+        render_option = self.visualizer.get_render_option()
+        render_option.mesh_show_back_face = True
+        render_option.light_on = False
+
+        self.sphere_list = []
+        for _, _ in enumerate(range(17)):
+            sphere = o3d.geometry.TriangleMesh.create_sphere(
+                radius=0.05)  # Adjust radius for size
+            sphere.translate([0, 0, 0])
+            sphere.paint_uniform_color([1, 0, 0])
+            self.sphere_list.append(sphere)
+            self.visualizer.add_geometry(sphere)
+
+        time.sleep(10)
+
+    def update_open3d(self):
+        self.visualizer.poll_events()
+        self.visualizer.update_renderer()
+
+    def update_sphere_position(self, sphere, new_center):
+        # Calculate the current center of the sphere
+        current_center = np.mean(np.asarray(sphere.vertices), axis=0)
+        # Calculate the shift required to move to the new center
+        shift = new_center - current_center
+        # Update the vertices
+        np_vertices = np.asarray(sphere.vertices)
+        sphere.vertices = o3d.utility.Vector3dVector(np_vertices + shift)
+        # Update the mesh (important for visualization)
+        sphere.compute_vertex_normals()
+        return sphere
+
+    def run(self, points_3d):
+        ### 3d open visualization jon ##
+        self.person_skeleton_cloud.points = o3d.utility.Vector3dVector(
+            points_3d)
+        self.lines.points = o3d.utility.Vector3dVector(points_3d)
+
+        self.visualizer.update_geometry(self.person_skeleton_cloud)
+        self.visualizer.update_geometry(self.lines)
+
+        for point_idx, point in enumerate(range(17)):
+            if point_idx > len(self.person_skeleton_cloud.points):
+                sphere = self.sphere_list[point_idx]
+                self.update_sphere_position(sphere, np.array([0, 0, 0]))
+            else:
+                sphere = self.sphere_list[point_idx]
+                self.update_sphere_position(sphere, np.array(
+                    self.person_skeleton_cloud.points[point_idx]))
+            self.visualizer.update_geometry(sphere)
+
+        self.update_open3d()
+
+
+
+
+class HumanDetector:
     def __init__(self, camera_int_params, camera_ext_params):
         self.camera_int_params = camera_int_params
         self.camera_ext_params = camera_ext_params
@@ -158,48 +241,8 @@ class humanDetector:
         self.Proj_matrix1 = np.dot(
             self.mtx1_int, np.hstack((self.R, self.T.reshape(-1, 1))))
 
-        ## ezt kulon kell szedni ##
-
-        mesh = o3d.io.read_triangle_mesh(
-            "D:/thesis/realtime_update/meshes/beanbag.ply")
-        if not mesh.has_vertex_colors():
-            mesh.vertex_colors = o3d.utility.Vector3dVector(
-                [[0.5, 0.5, 0.5] for _ in range(len(mesh.vertices))])
-        if not mesh.has_vertex_normals():
-            mesh.compute_vertex_normals()
-
-        self.visualizer = o3d.visualization.Visualizer()
-        self.visualizer.create_window()
-
-        self.skeleton_cloud = o3d.geometry.PointCloud()
-        keypoint_color = [0, 1, 0]
-        self.skeleton_cloud.paint_uniform_color(keypoint_color)
-
         self.connections = [(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11), (6, 12), (5, 6), (5, 7), (6, 8),
                             (7, 9), (8, 10), (1, 2), (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6)]
-        self.lines = o3d.geometry.LineSet()
-        self.lines.points = self.skeleton_cloud.points
-        self.lines.lines = o3d.utility.Vector2iVector(self.connections)
-        self.lines.paint_uniform_color([0, 1, 0])
-
-        self.visualizer.add_geometry(mesh)
-        self.visualizer.add_geometry(self.lines)
-        self.visualizer.add_geometry(self.skeleton_cloud)
-
-        render_option = self.visualizer.get_render_option()
-        render_option.mesh_show_back_face = True
-        render_option.light_on = False
-
-        self.sphere_list = []
-        for _, _ in enumerate(range(17)):
-            sphere = o3d.geometry.TriangleMesh.create_sphere(
-                radius=0.05)  # Adjust radius for size
-            sphere.translate([0, 0, 0])
-            sphere.paint_uniform_color([1, 0, 0])
-            self.sphere_list.append(sphere)
-            self.visualizer.add_geometry(sphere)
-
-        time.sleep(10)
 
     def select_person(self, image):
         det_result = inference_detector(self.detection_model, image)
@@ -247,28 +290,12 @@ class humanDetector:
 
         return results0, results1, image0, image1
 
-    def update_open3d(self):
-        self.visualizer.poll_events()
-        self.visualizer.update_renderer()
-
     def get_pose_xyz(self, frame):
         pose_set = []
         for x, y, z in zip(frame[0], frame[1], frame[2]):
             # divide by 1000 if camera focal length is given in mm
             pose_set.append(np.asarray([x, y, z])/1000)
         return np.asarray(pose_set)
-
-    def update_sphere_position(self, sphere, new_center):
-        # Calculate the current center of the sphere
-        current_center = np.mean(np.asarray(sphere.vertices), axis=0)
-        # Calculate the shift required to move to the new center
-        shift = new_center - current_center
-        # Update the vertices
-        np_vertices = np.asarray(sphere.vertices)
-        sphere.vertices = o3d.utility.Vector3dVector(np_vertices + shift)
-        # Update the mesh (important for visualization)
-        sphere.compute_vertex_normals()
-        return sphere
 
     def triangulation(self, results0, results1, P0, P1):
         left_pose = max(results0[0].pred_instances,
@@ -282,72 +309,10 @@ class humanDetector:
         points_3d = points_4d_hom[:3, :] / points_4d_hom[3, :]
         points_3d = self.get_pose_xyz(points_3d)
 
-        ### 3d open visualization jon ##
-        self.skeleton_cloud.points = o3d.utility.Vector3dVector(points_3d)
-        self.lines.points = o3d.utility.Vector3dVector(points_3d)
-
-        self.visualizer.update_geometry(self.skeleton_cloud)
-        self.visualizer.update_geometry(self.lines)
-
-        for point_idx, point in enumerate(range(17)):
-            if point_idx > len(self.skeleton_cloud.points):
-                sphere = self.sphere_list[point_idx]
-                self.update_sphere_position(sphere, np.array([0, 0, 0]))
-            else:
-                sphere = self.sphere_list[point_idx]
-                self.update_sphere_position(sphere, np.array(
-                    self.skeleton_cloud.points[point_idx]))
-            self.visualizer.update_geometry(sphere)
-
-        self.update_open3d()
-
-        # pcd = o3d.geometry.PointCloud()
-        # lines = o3d.utility.Vector2iVector(self.connections)
-        # lines.paint_uniform_color([0, 1, 0])
-
-        # # Set the points of the PointCloud object to the points_3d
-        # pcd.points = o3d.utility.Vector3dVector(
-        #     points_3d)  # Triangulate the 2D keypoints to 3D
-
-        # o3d.visualization.draw_geometries([pcd])
-
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111, projection='3d')
-
-        # # Scatter plot
-        # ax.scatter(points_3d[:, 0], points_3d[:, 1], points_3d[:, 2])
-
-        # # Drawing the lines based on the connection pattern
-        # # for connection in self.connections:
-        # #     start_point, end_point = connection
-        # #     # Adjust indices in the connection list if necessary, assuming 0-based indexing here
-        # #     start_point -= 1
-        # #     end_point -= 1
-
-        # #     # Check if start and end points are within the range of points_3d to avoid IndexError
-        # #     if start_point < len(points_3d) and end_point < len(points_3d):
-        # #         ax.plot([points_3d[start_point][0], points_3d[end_point][0]],
-        # #                 [points_3d[start_point][1], points_3d[end_point][1]],
-        # #                 [points_3d[start_point][2], points_3d[end_point][2]], color='blue')  # Choose color
-
-        # # # Set labels
-        # ax.set_xlabel('X Label')
-        # ax.set_ylabel('Y Label')
-        # ax.set_zlabel('Z Label')
-
-        # # Show plot
-        # plt.show()
-
-        # left_pose = max(results0[0].pred_instances, key=lambda item: np.mean(item.keypoint_scores))
-        # right_pose = max(results1[0].pred_instances, key=lambda item: np.mean(item.keypoint_scores))
-        # Convert the 2D keypoints to 3D
-
-    def run(self):
-        # Your code here
-        pass
+        return points_3d
 
 
-class robotDetector:
+class RobotDetector:
     def __init__(self) -> None:
         self.model = YOLO('D:/thesis/realtime_update/convert_images/best.pt')
         self.skeleton = self.get_skeleton()
@@ -386,6 +351,8 @@ class robotDetector:
         self.draw_keypoints(image, points)
         self.draw_skeleton(image, points)
         return image
+    
+    def triangulation(self, results0, results1, P0, P1)
 
 
 class VideoManager:
@@ -411,8 +378,9 @@ class VideoManager:
         self.video1 = cv2.VideoCapture(
             'D:/thesis/realtime_update/recordings/Scenario1/Cam2/out.mp4')
 
-        self.robot_detector = robotDetector()
-        self.human_detector = humanDetector(
+        self.open3d_visualizer = Visualizer()
+        self.robot_detector = RobotDetector()
+        self.human_detector = HumanDetector(
             camera_int_params, camera_ext_params)
 
     def run(self):
@@ -426,30 +394,25 @@ class VideoManager:
             if not ret0 or not ret1:
                 break
 
-            # img0_undistorted = cv2.undistort(frame0, self.mtx0_int, self.dist0_int, None, self.mtx0_int)
-            # img1_undistorted = cv2.undistort(frame1, self.mtx1_int, self.dist1_int, None, self.mtx1_int)
-
-            # results0, results1 = neural_network_process(
-            #     self.detection_model, self.model, image_list[0], image_list[1], self.connections)
-            # run_triangulation(results0, results1, self.Proj_matrix0, self.Proj_matrix1, self.skeleton_cloud,
-            #                   self.lines, self.sphere_list, self.vis)
-            # self.update_cv2_windows()  # Update OpenCV windows here
-
             # robot detection
-            # result_frame0 = self.robot_detector.inference(frame0)
-            # result_frame1 = self.robot_detector.inference(frame1)
+            result_frame0 = self.robot_detector.inference(frame0)
+            result_frame1 = self.robot_detector.inference(frame1)
 
-            # points0 = self.robot_detector.get_keypoints(result_frame0)
-            # points1 = self.robot_detector.get_keypoints(result_frame1)
+            points0 = self.robot_detector.get_keypoints(result_frame0)
+            points1 = self.robot_detector.get_keypoints(result_frame1)
 
-            # self.robot_detector.draw(frame0, points0)
-            # self.robot_detector.draw(frame1, points1)
+            self.robot_detector.draw(frame0, points0)
+            self.robot_detector.draw(frame1, points1)
 
             # human detection
-            result0, result1, frame0, frame1 = self.human_detector.inference(
-                frame0, frame1)
-            self.human_detector.triangulation(
-                result0, result1, self.Proj_matrix0, self.Proj_matrix1)
+            # result0, result1, frame0, frame1 = self.human_detector.inference(
+            #     frame0, frame1)
+            # points_3d = self.human_detector.triangulation(
+            #     result0, result1, self.Proj_matrix0, self.Proj_matrix1)
+
+            ######### self.open3d_visualizer.run(points_3d)
+            
+            
             # self.update_cv2_windows2("Camera 0", frame0)
             # self.update_cv2_windows2("Camera 1", frame1)
 
