@@ -1,0 +1,525 @@
+{
+  "info": {
+    "year": "2024",
+    "version": "4",
+    "description": "Exported from roboflow.com",
+    "contributor": "",
+    "url": "https://public.roboflow.com/object-detection/undefined",
+    "date_created": "2024-02-10T10:40:15+00:00"
+  },
+  "licenses": [
+    {
+      "id": 1,
+      "url": "https://creativecommons.org/licenses/by/4.0/",
+      "name": "CC BY 4.0"
+    }
+  ],
+  "categories": [
+    {
+      "id": 0,
+      "name": "rob",
+      "supercategory": "none"
+    },
+    {
+      "id": 1,
+      "name": "Robot",
+      "supercategory": "rob",
+      "keypoints": [
+        "rightFrontWheel",
+        "leftFrontWheel",
+        "rightBackWheel",
+        "leftBackWheel",
+        "lidar",
+        "leftFrontBottom",
+        "rightFrontBottom",
+        "rightFrontTop",
+        "Hand",
+        "leftFrontTop",
+        "leftEmergencyStop",
+        "rightEmergencyStop",
+        "leftBackBottom",
+        "rightBackBottom",
+        "rightBackTop",
+        "leftBackTop",
+        "backScreen"
+      ],
+      "skeleton": [
+        [
+          1,
+          3
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          3
+        ],
+        [
+          6,
+          7
+        ],
+        [
+          7,
+          5
+        ],
+        [
+          6,
+          5
+        ],
+        [
+          2,
+          6
+        ],
+        [
+          7,
+          1
+        ],
+        [
+          8,
+          7
+        ],
+        [
+          8,
+          5
+        ],
+        [
+          5,
+          9
+        ],
+        [
+          9,
+          8
+        ],
+        [
+          8,
+          10
+        ],
+        [
+          10,
+          6
+        ],
+        [
+          10,
+          5
+        ],
+        [
+          10,
+          9
+        ],
+        [
+          4,
+          11
+        ],
+        [
+          2,
+          11
+        ],
+        [
+          1,
+          12
+        ],
+        [
+          3,
+          12
+        ],
+        [
+          13,
+          6
+        ],
+        [
+          13,
+          14
+        ],
+        [
+          14,
+          7
+        ],
+        [
+          14,
+          15
+        ],
+        [
+          15,
+          16
+        ],
+        [
+          16,
+          13
+        ],
+        [
+          13,
+          17
+        ],
+        [
+          14,
+          17
+        ],
+        [
+          16,
+          17
+        ],
+        [
+          15,
+          17
+        ],
+        [
+          13,
+          11
+        ],
+        [
+          6,
+          11
+        ],
+        [
+          7,
+          12
+        ],
+        [
+          14,
+          12
+        ],
+        [
+          16,
+          10
+        ],
+        [
+          8,
+          15
+        ],
+        [
+          3,
+          14
+        ],
+        [
+          4,
+          13
+        ]
+      ]
+    }
+  ],
+  "images": [
+    {
+      "id": 0,
+      "license": 1,
+      "file_name": "undistorted_cam2_60_png.rf.1db4b79580218a9e3014307055fb19b1.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 1,
+      "license": 1,
+      "file_name": "undistorted_cam2_0_png.rf.1c6679894e9ba2f72fd047434fdc89c8.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 2,
+      "license": 1,
+      "file_name": "undistorted_cam2_30_png.rf.2ec740389f8a24e7bb4524adce9f76cb.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 3,
+      "license": 1,
+      "file_name": "undistorted_cam2_71_png.rf.0015ef546b70d97855078d337dba2472.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 4,
+      "license": 1,
+      "file_name": "undistorted_cam2_6_png.rf.5d36bf3185af06d73438233ae18a4179.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 5,
+      "license": 1,
+      "file_name": "undistorted_cam1_5_png.rf.36a3a5b0c73eb386acf036ee996023a8.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 6,
+      "license": 1,
+      "file_name": "undistorted_cam1_12_png.rf.3d387349a8f61f904728dd0a480d1e39.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 7,
+      "license": 1,
+      "file_name": "undistorted_cam2_29_png.rf.62a2430f05d9305f6932f711eaf5bd47.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 8,
+      "license": 1,
+      "file_name": "undistorted_cam2_44_png.rf.7391f7b4cae79b0a35f7e5d0d9009af6.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 9,
+      "license": 1,
+      "file_name": "undistorted_cam1_6_png.rf.8b2e0f54df49c1cef4c93b76234b5d2c.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 10,
+      "license": 1,
+      "file_name": "undistorted_cam1_69_png.rf.7437114cafea743aca194be37fdb3848.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 11,
+      "license": 1,
+      "file_name": "undistorted_cam2_9_png.rf.6c0316352c2beef5f5b3acacb29035a5.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 12,
+      "license": 1,
+      "file_name": "undistorted_cam2_16_png.rf.ac53edcfb753e51d5f45645609a3dd45.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 13,
+      "license": 1,
+      "file_name": "undistorted_cam2_8_png.rf.846e56d20ab965677cfc51092bcbf966.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 14,
+      "license": 1,
+      "file_name": "undistorted_cam1_67_png.rf.ae511cc62fc4580ab4d80f15491891fa.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 15,
+      "license": 1,
+      "file_name": "undistorted_cam2_53_png.rf.b4529a6ff7d29b477d98c36d1bd7a323.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 16,
+      "license": 1,
+      "file_name": "undistorted_cam1_23_png.rf.b2eff3e7d898590c317010914c93ab33.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 17,
+      "license": 1,
+      "file_name": "undistorted_cam2_33_png.rf.b7f310f8e4a0d50246acb2e465680c26.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 18,
+      "license": 1,
+      "file_name": "undistorted_cam1_19_png.rf.8a6140c1eee1671119d1be6a91b45905.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 19,
+      "license": 1,
+      "file_name": "undistorted_cam2_62_png.rf.cc573f0a6595c105c8ea6ccf336a27f1.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 20,
+      "license": 1,
+      "file_name": "undistorted_cam1_78_png.rf.bc7f26fe365841e2d3fece47bb760491.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 21,
+      "license": 1,
+      "file_name": "undistorted_cam1_1_png.rf.eb7a5e58b1e16de84e7f8f8449c5db35.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 22,
+      "license": 1,
+      "file_name": "undistorted_cam2_73_png.rf.b25be55d0ab32dde93ec02c2db26315f.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 23,
+      "license": 1,
+      "file_name": "undistorted_cam2_67_png.rf.ceadec55f7ea0312749a179708cbbb3a.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 24,
+      "license": 1,
+      "file_name": "undistorted_cam1_26_png.rf.eda66e6cce05a84413fb988522520670.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 25,
+      "license": 1,
+      "file_name": "undistorted_cam1_65_png.rf.bde2b7f02f920e7d2eac132c84073730.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 26,
+      "license": 1,
+      "file_name": "undistorted_cam1_3_png.rf.f37f8f9fce311177e581397691270393.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 27,
+      "license": 1,
+      "file_name": "undistorted_cam1_36_png.rf.f682b9f91e08dc92325c69c8169b7892.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 28,
+      "license": 1,
+      "file_name": "undistorted_cam2_63_png.rf.ffbcede379dcd1f08ea3dfb30b2b10d8.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 29,
+      "license": 1,
+      "file_name": "undistorted_cam1_48_png.rf.df7eae1333888d8c18df84b2f9525cc4.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    },
+    {
+      "id": 30,
+      "license": 1,
+      "file_name": "undistorted_cam2_43_png.rf.fa3af92ee2be0b2651e92ced258cffd4.jpg",
+      "height": 640,
+      "width": 640,
+      "date_captured": "2024-02-10T10:40:15+00:00"
+    }
+  ],
+  "annotations": [
+    {
+      "id": 0,
+      "image_id": 0,
+      "category_id": 1,
+      "bbox": [
+        170,
+        320,
+        154.5,
+        258
+      ],
+      "area": 39861,
+      "segmentation": [],
+      "iscrowd": 0,
+      "keypoints": [
+        220.648,
+        530.539,
+        2,
+        199.712,
+        475.982,
+        1,
+        286.051,
+        513.66,
+        2,
+        274.634,
+        464.784,
+        1,
+        197.265,
+        463.87,
+        2,
+        205.352,
+        460.494,
+        1,
+        205.177,
+        477.091,
+        2,
+        208.869,
+        416.048,
+        2,
+        202.715,
+        387.355,
+        2,
+        204.825,
+        403.952,
+        2,
+        245.401,
+        466.184,
+        1,
+        252.295,
+        484.123,
+        2,
+        283.063,
+        449.523,
+        1,
+        289.04,
+        462.463,
+        2,
+        284.821,
+        404.515,
+        2,
+        277.436,
+        394.669,
+        2,
+        294.139,
+        406.202,
+        2
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+how to run: C:\Users\Mate\anaconda3\envs\thesis\python.exe
