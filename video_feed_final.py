@@ -128,7 +128,7 @@ def calibrate_extrinsics(camera_int_params, chessboard_size=(9, 6), square_size=
 class Visualizer:
     def __init__(self) -> None:
         mesh = o3d.io.read_triangle_mesh(
-            "D:/thesis/realtime_update/meshes/beanbag.ply")
+            "D:/thesis/realtime_update/meshes/rotated_beanbag.ply")
         if not mesh.has_vertex_colors():
             mesh.vertex_colors = o3d.utility.Vector3dVector(
                 [[0.5, 0.5, 0.5] for _ in range(len(mesh.vertices))])
@@ -200,6 +200,7 @@ class Visualizer:
         return sphere
 
     def run_human(self, points_3d):
+
         ### 3d open visualization jon ##
         self.person_skeleton_cloud.points = o3d.utility.Vector3dVector(
             points_3d)
@@ -263,6 +264,8 @@ class HumanDetector:
         self.connections = [(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11), (6, 12), (5, 6), (5, 7), (6, 8),
                             (7, 9), (8, 10), (1, 2), (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6)]
 
+        self.all_points_3d = np.array([])
+
     def select_person(self, image):
         det_result = inference_detector(self.detection_model, image)
         pred_instance = det_result.pred_instances.cpu().numpy()
@@ -294,6 +297,7 @@ class HumanDetector:
         init_default_scope('mmdet')
         person_bboxes0 = self.select_person(image0)
         person_bboxes1 = self.select_person(image1)
+
         init_default_scope('mmpose')
 
         if person_bboxes0 == [] or person_bboxes1 == []:
@@ -316,6 +320,10 @@ class HumanDetector:
             pose_set.append(np.asarray([x, y, z])/1000)
         return np.asarray(pose_set)
 
+    def save_to_npy(self):
+        np.save("all_points_3d.npy", np.array(
+            self.all_points_3d, dtype=object))
+
     def triangulation(self, results0, results1, P0, P1):
         left_pose = max(results0[0].pred_instances,
                         key=lambda item: np.mean(item.keypoint_scores))
@@ -327,13 +335,14 @@ class HumanDetector:
 
         points_3d = points_4d_hom[:3, :] / points_4d_hom[3, :]
         points_3d = self.get_pose_xyz(points_3d)
-
+        # self.all_points_3d.append(np.array(points_3d))
+        # self.save_to_npy()
         return points_3d
 
 
 class RobotDetector:
     def __init__(self) -> None:
-        self.model = YOLO('D:/thesis/realtime_update/convert_images/best.pt')
+        self.model = YOLO('D:/thesis/realtime_update/weights/best.pt')
         self.skeleton = self.get_skeleton()
 
     def get_skeleton(self):
@@ -381,6 +390,7 @@ class RobotDetector:
     def triangulation(self, results0, results1, P0, P1, points0, points1):
         if len(points0) == 0 or len(points1) == 0:
             return []
+
         left_pose = max(results0[0].keypoints,
                         key=lambda item: np.mean(item.conf.cpu().numpy()))
         right_pose = max(results1[0].keypoints,
@@ -391,7 +401,7 @@ class RobotDetector:
 
         points_3d = points_4d_hom[:3, :] / points_4d_hom[3, :]
         points_3d = self.get_pose_xyz(points_3d)
-
+        print(points_3d)
         return points_3d
 
 
@@ -434,13 +444,13 @@ class VideoManager:
             if not ret0 or not ret1:
                 break
 
-            # human detection
+            ##### human detection #####
             result0, result1, frame0, frame1 = self.human_detector.inference(
                 frame0, frame1)
             human_points_3d = self.human_detector.triangulation(
                 result0, result1, self.Proj_matrix0, self.Proj_matrix1)
 
-            # robot detection
+            ##### robot detection #####
             result_frame0 = self.robot_detector.inference(frame0)
             result_frame1 = self.robot_detector.inference(frame1)
 
@@ -450,11 +460,12 @@ class VideoManager:
             robot_points_3d = self.robot_detector.triangulation(
                 result_frame0, result_frame1, self.Proj_matrix0, self.Proj_matrix1, points0, points1)
 
+            # visualizing the 3d points
+
             self.open3d_visualizer.run_human(human_points_3d)
             self.open3d_visualizer.run_robot(robot_points_3d)
 
             self.open3d_visualizer.update_open3d()
-
 
             elapsed_time = time.time() - start_time
             # Calculate frames per second
@@ -520,14 +531,8 @@ def main():
 
     return camera_int_params, camera_ext_params
 
-    ### Camera calibration over ###
-
-    # camera_manager = CameraManager(camera_int_params, camera_ext_params)
-    # camera_manager.run()
-
 
 if __name__ == "__main__":
     ins, ex = main()
     VideoManager = VideoManager(ins, ex)
     VideoManager.run()
-    # main()

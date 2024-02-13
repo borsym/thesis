@@ -7,7 +7,7 @@ def get_pose_xyz(frame):
         pose_set.append(np.asarray([x,y,z])/1000)
     return np.asarray(pose_set)
 
-# Camera positions in the mesh
+# Camera positions in the mesh => erre probalta megirni a forgatast ez nem kell most az automatikus megtalaloshoz kellene
 cam_stand = np.asarray([-1.01197171,  0.1033909,  -5.64958239]) #allvany (-1.0, 0.1, -5.6)
 cam_corner = np.asarray([-5.25061131, -0.15126795,  0.53622693]) #sarok (-5.3, -0.15, 0.54)
 cam_door = np.asarray([1.1673286,  -0.07970255,  5.54580784]) # ajto (1.2, -0.08, 5.5)
@@ -270,10 +270,15 @@ target_scale = 0.41708936158237075
 target_translation = np.asarray([0.91201383, -1.74475789, -0.90505653])
 
 # translation: [-1.5 -0.4  7.7]
+# forgatas identity matrix 3
+# scale 1 
+
 base_trans_vector = np.asarray([-1.5, -0.4, 7.7])
-base_rot_mx = np.asarray([[-0.99843713,  0.00235259, -0.05583681],
+base_rot_mx = np.asarray([
+ [-0.99843713,  0.00235259, -0.05583681],
  [ 0.01050692, -0.9733955,  -0.22889035],
- [-0.05488979, -0.22911929,  0.97184951]])
+ [-0.05488979, -0.22911929,  0.97184951]
+])
 
 print(base_rot_mx)
 translate_point_cloud(mesh, base_trans_vector)
