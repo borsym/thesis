@@ -149,6 +149,7 @@ class Visualizer:
         self.person_lines.paint_uniform_color([0, 1, 0])
 
         self.robot_conections = self.get_skeleton_connection_robot()
+        print("robot connection list", self.robot_conections)
         self.robot_skeleton_cloud = o3d.geometry.PointCloud()
         keypoint_color = [0, 0, 1]
         self.robot_skeleton_cloud.paint_uniform_color(keypoint_color)
@@ -246,7 +247,11 @@ class Visualizer:
     def get_skeleton_connection_robot(self):
         with open("D:/thesis/realtime_update/robot-keypoints-connection.json", 'r') as file:
             annotations_data = json.load(file)
-        return annotations_data['skeleton']
+        skeleton_connections = annotations_data['skeleton']
+        # shift the indices by 1 to match the 0-based indexing in open3d
+        skeleton_connections = [[x - 1, y - 1]
+                                for x, y in skeleton_connections]
+        return skeleton_connections
 
     def update_open3d(self):
         self.visualizer.poll_events()
@@ -289,7 +294,7 @@ class Visualizer:
         self.robot_skeleton_cloud.points = o3d.utility.Vector3dVector(
             points_3d)
         self.robot_lines.points = o3d.utility.Vector3dVector(points_3d)
-        
+
         self.visualizer.update_geometry(self.robot_skeleton_cloud)
         self.visualizer.update_geometry(self.robot_lines)
 
@@ -408,7 +413,6 @@ class HumanDetector:
         if self.current_keypoints is not None:
             self.previous_keypoints = self.current_keypoints
         self.current_keypoints = points_3d
-
         return points_3d
 
 
@@ -537,6 +541,11 @@ class VideoManager:
             #     # Update the arrow with the calculated start point and direction vector
             #     self.open3d_visualizer.update_arrow(
             #         start_point, direction_vector, "human")
+            #### undistroztion ####
+            frame0 = cv2.undistort(frame0, self.mtx0_int,
+                                   self.dist0_int, None, self.mtx0_int)
+            frame1 = cv2.undistort(frame1, self.mtx1_int,
+                                   self.dist1_int, None, self.mtx1_int)
 
             ##### robot detection #####
             result_frame0 = self.robot_detector.inference(frame0)
