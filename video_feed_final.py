@@ -7,6 +7,7 @@ import json
 import os
 import glob
 import time
+
 from queue import Queue
 
 from mmdet.apis import inference_detector, init_detector
@@ -19,6 +20,7 @@ from mmpose.structures import merge_data_samples, split_instances
 from ultralytics import YOLO
 
 import matplotlib.pyplot as plt
+from scipy.spatial import procrustes
 
 
 def calibrate_intrinsics(image0, image1, chessboard_size=(9, 6), square_size=0.07):
@@ -129,14 +131,50 @@ class Visualizer:
     def __init__(self) -> None:
         mesh = o3d.io.read_triangle_mesh(
             "D:/thesis/realtime_update/meshes/rotated_beanbag.ply")
+
         if not mesh.has_vertex_colors():
             mesh.vertex_colors = o3d.utility.Vector3dVector(
                 [[0.5, 0.5, 0.5] for _ in range(len(mesh.vertices))])
         if not mesh.has_vertex_normals():
             mesh.compute_vertex_normals()
 
+        self.robot_mesh = o3d.io.read_triangle_mesh(
+            "D:/thesis/realtime_update/meshes/save4.ply")
+
+        if not self.robot_mesh.has_vertex_colors():
+            self.robot_mesh.vertex_colors = o3d.utility.Vector3dVector(
+                [[0.5, 0.5, 0.5] for _ in range(len(self.robot_mesh.vertices))])
+        if not self.robot_mesh.has_vertex_normals():
+            self.robot_mesh.compute_vertex_normals()
+
+        self.nerf_robot_keypoints = np.array([
+            [-0.88645411, -0.44562197, 0.93118215],
+            [-0.63839042, -0.37820864, -1.22604775],
+            [0.83720541, -0.33930898, 1.09157586],
+            [1.00591755, -0.24008346, -1.06751966],
+            [-1.39356089, 0.32691932, -0.14874268],
+            [-1.04946733, 0.22727919, -0.5598197],
+            [-1.1274302, 0.16455293, 0.26233435],
+            [-1.02111721, 1.14981174, 0.29777205],
+            [-1.28275752, 1.59558785, -0.07786727],
+            [-0.99985462, 1.190431, -0.446419],
+            [0.09162557, 0.18090272, -0.83623338],
+            [-0.03595006, 0.10247564, 0.74428666],
+            [1.17964864, 0.3623569, -0.29758072],
+            [1.11931801, 0.30521822, 0.43243515],
+            [0.86416674, 1.27875948, 0.51748562],
+            [0.89251685, 1.31221807, -0.29049325],
+            [1.25816941, 1.35461175, 0.17728388]
+        ])
+
         self.visualizer = o3d.visualization.Visualizer()
         self.visualizer.create_window()
+
+        self.robot_mesh_vertex_cloud = o3d.geometry.PointCloud()
+        self.robot_mesh_vertex_cloud.paint_uniform_color([0, 1, 1])
+
+        self.vertex_cloud_for_robot = np.array(
+            self.robot_mesh.vertices)[::1000, :]
 
         self.person_skeleton_cloud = o3d.geometry.PointCloud()
         keypoint_color = [0, 1, 0]
@@ -161,6 +199,7 @@ class Visualizer:
         self.robot_lines.paint_uniform_color([0, 0, 1])
 
         self.visualizer.add_geometry(mesh)
+        self.visualizer.add_geometry(self.robot_mesh_vertex_cloud)
         self.visualizer.add_geometry(self.person_lines)
         self.visualizer.add_geometry(self.person_skeleton_cloud)
         self.visualizer.add_geometry(self.robot_lines)
@@ -178,7 +217,7 @@ class Visualizer:
         self.direction_human_arrow_shaft.paint_uniform_color(
             [1, 0, 0])  # Red color for the arrow shaft
         self.visualizer.add_geometry(self.direction_human_arrow_shaft)
-        self.visualizer.add_geometry(self.direction_human_arrow_head)
+        # self.visualizer.add_geometry(self.direction_human_arrow_head)
 
         self.direction_robot_arrow_shaft = o3d.geometry.LineSet()
         self.direction_robot_arrow_head = o3d.geometry.TriangleMesh.create_cone(
@@ -188,7 +227,7 @@ class Visualizer:
         self.direction_robot_arrow_shaft.paint_uniform_color(
             [1, 0, 0])  # Red color for the arrow shaft
         self.visualizer.add_geometry(self.direction_robot_arrow_shaft)
-        self.visualizer.add_geometry(self.direction_robot_arrow_head)
+        # self.visualizer.add_geometry(self.direction_robot_arrow_head)
 
     def update_arrow(self, start_point, direction_vector, object_type):
         # Update the arrow's shaft
@@ -268,6 +307,32 @@ class Visualizer:
         # Update the mesh (important for visualization)
         sphere.compute_vertex_normals()
         return sphere
+
+    def align_mesh_to_keyponts(self, keypoints):
+        mesh_vertex_cloud = self.vertex_cloud_for_robot
+
+        centroid_robot_keypoints = np.mean(keypoints, axis=0)
+        centroid_nerf_keypoints = np.mean(self.nerf_robot_keypoints, axis=0)
+
+        centered_keypoints = keypoints - centroid_robot_keypoints
+        centered_mesh_vertex_cloud = mesh_vertex_cloud - centroid_nerf_keypoints
+        centered_nerf_keypoints = self.nerf_robot_keypoints - centroid_nerf_keypoints
+
+        # Perform Procrustes analysis
+        _, mtx2, _ = procrustes(centered_keypoints, centered_nerf_keypoints)
+
+        transformation_matrix = np.linalg.lstsq(
+            centered_nerf_keypoints, mtx2, rcond=None)[0]
+        transformed_mesh_vertex_cloud = centered_mesh_vertex_cloud @ transformation_matrix.T
+
+        # transformed_mesh_vertex_cloud *= 1.2
+
+        # Translate the transformed mesh vertices to match the robot keypoints centroid
+        transformed_mesh_vertex_cloud += centroid_robot_keypoints
+
+        return transformed_mesh_vertex_cloud
+
+        # return mesh
 
     def run_human(self, points_3d):
 
@@ -515,6 +580,8 @@ class VideoManager:
             camera_int_params, camera_ext_params)
 
     def run(self):
+        # self.Visualizer.run()
+        first_frame = True
         while True:
             start_time = time.time()
             # Read frames from each video
@@ -526,21 +593,21 @@ class VideoManager:
                 break
 
             # ##### human detection #####
-            # result0, result1, frame0, frame1 = self.human_detector.inference(
-            #     frame0, frame1)
-            # human_points_3d = self.human_detector.triangulation(
-            #     result0, result1, self.Proj_matrix0, self.Proj_matrix1)
+            result0, result1, frame0, frame1 = self.human_detector.inference(
+                frame0, frame1)
+            human_points_3d = self.human_detector.triangulation(
+                result0, result1, self.Proj_matrix0, self.Proj_matrix1)
 
-            # if self.human_detector.previous_keypoints is not None:
-            #     # Calculate the direction vector and start point
-            #     direction_vector = np.mean(
-            #         self.human_detector.current_keypoints - self.human_detector.previous_keypoints, axis=0)
-            #     start_point = (
-            #         self.human_detector.current_keypoints[5] + self.human_detector.current_keypoints[6]) / 2
+            if self.human_detector.previous_keypoints is not None:
+                # Calculate the direction vector and start point
+                direction_vector = np.mean(
+                    self.human_detector.current_keypoints - self.human_detector.previous_keypoints, axis=0)
+                start_point = (
+                    self.human_detector.current_keypoints[5] + self.human_detector.current_keypoints[6]) / 2
 
-            #     # Update the arrow with the calculated start point and direction vector
-            #     self.open3d_visualizer.update_arrow(
-            #         start_point, direction_vector, "human")
+                # Update the arrow with the calculated start point and direction vector
+                self.open3d_visualizer.update_arrow(
+                    start_point, direction_vector, "human")
             #### undistroztion ####
             frame0 = cv2.undistort(frame0, self.mtx0_int,
                                    self.dist0_int, None, self.mtx0_int)
@@ -569,8 +636,25 @@ class VideoManager:
 
             # visualizing the 3d points
 
-            # self.open3d_visualizer.run_human(human_points_3d)
+            if len(robot_points_3d) > 0 and not first_frame:
+                transformed_vertices = self.open3d_visualizer.align_mesh_to_keyponts(
+                    robot_points_3d)
+
+                self.open3d_visualizer.robot_mesh_vertex_cloud.points = o3d.utility.Vector3dVector(
+                    transformed_vertices)
+                self.open3d_visualizer.robot_mesh_vertex_cloud.paint_uniform_color([
+                                                                                   0, 1, 1])
+                self.open3d_visualizer.visualizer.update_geometry(
+                    self.open3d_visualizer.robot_mesh_vertex_cloud)
+            else:
+                first_frame = False
+                self.open3d_visualizer.robot_mesh_vertex_cloud.paint_uniform_color([
+                                                                                   0, 1, 1])
+                self.open3d_visualizer.visualizer.add_geometry(
+                    self.open3d_visualizer.robot_mesh_vertex_cloud)
+
             self.open3d_visualizer.run_robot(robot_points_3d)
+            self.open3d_visualizer.run_human(human_points_3d)
 
             self.open3d_visualizer.update_open3d()
 

@@ -260,11 +260,15 @@ robot_mesh = o3d.io.read_triangle_mesh(
 
 mesh_vertex_cloud = np.array(robot_mesh.vertices)
 
+connections = [[x-1, y - 1] for x, y in connections]
 
 skeleton_robot = o3d.geometry.PointCloud()
 skeleton_robot.points = o3d.utility.Vector3dVector(robot_keypoints)
 
-
+lineset = o3d.geometry.LineSet(
+    points=skeleton_robot.points,
+    lines=o3d.utility.Vector2iVector(connections)
+)
 # SZAR PONTOK
 robot_ABCD = np.array([
     [-0.83684134, -0.46688437,  0.92713898],
@@ -726,49 +730,56 @@ def my_last_hope():
     transformed_mesh_vertex_cloud *= 1.2
     # Translate the transformed mesh vertices to match the robot keypoints centroid
     transformed_mesh_vertex_cloud += centroid_robot_keypoints
+    robot_mesh.vertices = o3d.utility.Vector3dVector(
+        transformed_mesh_vertex_cloud)
 
-    print(transformed_mesh_vertex_cloud.shape)
+    # Visualize the transformed mesh in open3d
+    # connect  the skeleton_robot lines in open3d
 
-    final_transformed_vertices = np.asarray(transformed_mesh_vertex_cloud)
-    final_transformed_vertices = final_transformed_vertices[::700, :]
-    # # visualize in matplotlib the transofmerd_mesh and the robot_keypoints
-    fig = plt.figure(figsize=(10, 8))
-    ax = fig.add_subplot(111, projection='3d')
-    # keep every 1000th points from the tnrasformed_mesh
-    # transformed_vertices = final_transformed_vertices[::3000, :]
+    o3d.visualization.draw_geometries([robot_mesh, skeleton_robot, lineset])
 
-    x = final_transformed_vertices[:, 0]
-    y = final_transformed_vertices[:, 1]
-    z = final_transformed_vertices[:, 2]
+    # print(transformed_mesh_vertex_cloud.shape)
 
-    # Plot keypoints
-    ax.scatter(x, y, z)
+    # final_transformed_vertices = np.asarray(transformed_mesh_vertex_cloud)
+    # final_transformed_vertices = final_transformed_vertices[::700, :]
+    # # # visualize in matplotlib the transofmerd_mesh and the robot_keypoints
+    # fig = plt.figure(figsize=(10, 8))
+    # ax = fig.add_subplot(111, projection='3d')
+    # # keep every 1000th points from the tnrasformed_mesh
+    # # transformed_vertices = final_transformed_vertices[::3000, :]
 
-    # visualize the robot_keypoints
-    k = robot_keypoints[:, 0]
-    m = robot_keypoints[:, 1]
-    l = robot_keypoints[:, 2]
+    # x = final_transformed_vertices[:, 0]
+    # y = final_transformed_vertices[:, 1]
+    # z = final_transformed_vertices[:, 2]
 
-    connections_zero_based = [[p-1 for p in pair] for pair in connections]
-    # Draw lines for each connection
-    for i, pair in enumerate(connections_zero_based):
-        start_point = robot_keypoints[pair[0]]
-        end_point = robot_keypoints[pair[1]]
-        ax.plot([start_point[0], end_point[0]], [start_point[1],
-                end_point[1]], [start_point[2], end_point[2]], 'r-')
+    # # Plot keypoints
+    # ax.scatter(x, y, z)
 
-    # Plot keypoints
+    # # visualize the robot_keypoints
+    # k = robot_keypoints[:, 0]
+    # m = robot_keypoints[:, 1]
+    # l = robot_keypoints[:, 2]
 
-    ax.scatter(k, m, l)
+    # connections_zero_based = [[p-1 for p in pair] for pair in connections]
+    # # Draw lines for each connection
+    # for i, pair in enumerate(connections_zero_based):
+    #     start_point = robot_keypoints[pair[0]]
+    #     end_point = robot_keypoints[pair[1]]
+    #     ax.plot([start_point[0], end_point[0]], [start_point[1],
+    #             end_point[1]], [start_point[2], end_point[2]], 'r-')
 
-    # Setting labels
+    # # Plot keypoints
 
-    ax.set_xlabel('X axis')
-    ax.set_ylabel('Y axis')
-    ax.set_zlabel('Z axis')
+    # ax.scatter(k, m, l)
 
-    plt.title('Transformed Robot Mesh')
-    plt.show()
+    # # Setting labels
+
+    # ax.set_xlabel('X axis')
+    # ax.set_ylabel('Y axis')
+    # ax.set_zlabel('Z axis')
+
+    # plt.title('Transformed Robot Mesh')
+    # plt.show()
 
 
 my_last_hope()
