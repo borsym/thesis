@@ -169,14 +169,56 @@ class Visualizer:
         render_option.mesh_show_back_face = True
         render_option.light_on = False
 
-        # self.sphere_list = []
-        # for _, _ in enumerate(range(17)):  # 34?
-        #     sphere = o3d.geometry.TriangleMesh.create_sphere(
-        #         radius=0.05)  # Adjust radius for size
-        #     sphere.translate([0, 0, 0])
-        #     sphere.paint_uniform_color([1, 0, 0])
-        #     self.sphere_list.append(sphere)
-        #     self.visualizer.add_geometry(sphere)
+        self.direction_arrow_shaft = o3d.geometry.LineSet()
+        self.direction_arrow_head = o3d.geometry.TriangleMesh.create_cone(
+            radius=0.04, height=0.1)
+        self.direction_arrow_head.paint_uniform_color(
+            [1, 0, 0])  # Red color for the arrowhead
+        self.direction_arrow_shaft.paint_uniform_color(
+            [1, 0, 0])  # Red color for the arrow shaft
+        self.visualizer.add_geometry(self.direction_arrow_shaft)
+        self.visualizer.add_geometry(self.direction_arrow_head)
+
+    def update_arrow(self, start_point, direction_vector):
+        # Update the arrow's shaft
+        scaling_factor = 5  # Adjust the scaling factor as needed
+        end_point = start_point + scaling_factor * direction_vector
+        points = [start_point, end_point]
+        lines = [[0, 1]]  # LineSet uses indices into the points list
+        self.direction_arrow_shaft.points = o3d.utility.Vector3dVector(points)
+        self.direction_arrow_shaft.lines = o3d.utility.Vector2iVector(lines)
+
+        # Update the arrow's head
+        # Place the cone at the end of the shaft and rotate it to point in the direction of the vector
+        transformation_matrix = self.get_arrow_transformation_matrix(
+            end_point, direction_vector)  # TODO start helyett lehet end
+        self.direction_arrow_head.transform(
+            transformation_matrix)
+
+        # Update the geometries
+        self.visualizer.update_geometry(self.direction_arrow_shaft)
+        self.visualizer.update_geometry(self.direction_arrow_head)
+
+    def get_arrow_transformation_matrix(self, end_point, direction_vector):
+        # Normalize the direction vector
+        direction = direction_vector / np.linalg.norm(direction_vector)
+
+        # Create a rotation matrix that aligns the z-axis to the direction vector
+        z_axis = np.array([0, 0, 1])
+        rotation_axis = np.cross(z_axis, direction)
+        rotation_angle = np.arccos(
+            np.clip(np.dot(z_axis, direction), -1.0, 1.0))
+        rotation_axis_angle = rotation_axis * rotation_angle
+        rotation_axis_angle = np.expand_dims(rotation_axis_angle, axis=1)
+
+        rotation_matrix = o3d.geometry.get_rotation_matrix_from_axis_angle(
+            rotation_axis_angle)
+
+        # Create the transformation matrix with rotation and translation
+        transformation_matrix = np.eye(4)
+        transformation_matrix[:3, :3] = rotation_matrix
+        transformation_matrix[:3, 3] = end_point
+        return transformation_matrix
 
     def get_skeleton_connection_robot(self):
         with open("D:/thesis/realtime_update/robot-keypoints-connection.json", 'r') as file:
@@ -265,6 +307,8 @@ class HumanDetector:
                             (7, 9), (8, 10), (1, 2), (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6)]
 
         self.all_points_3d = np.array([])
+        self.previous_keypoints = None
+        self.current_keypoints = None
 
     def select_person(self, image):
         det_result = inference_detector(self.detection_model, image)
@@ -337,6 +381,10 @@ class HumanDetector:
         points_3d = self.get_pose_xyz(points_3d)
         # self.all_points_3d.append(np.array(points_3d))
         # self.save_to_npy()
+        if self.current_keypoints is not None:
+            self.previous_keypoints = self.current_keypoints
+        self.current_keypoints = points_3d
+
         return points_3d
 
 
@@ -450,20 +498,31 @@ class VideoManager:
             human_points_3d = self.human_detector.triangulation(
                 result0, result1, self.Proj_matrix0, self.Proj_matrix1)
 
+            if self.human_detector.previous_keypoints is not None:
+                # Calculate the direction vector and start point
+                direction_vector = np.mean(
+                    self.human_detector.current_keypoints - self.human_detector.previous_keypoints, axis=0)
+                start_point = (
+                    self.human_detector.current_keypoints[5] + self.human_detector.current_keypoints[6]) / 2
+
+                # Update the arrow with the calculated start point and direction vector
+                self.open3d_visualizer.update_arrow(
+                    start_point, direction_vector)
+
             ##### robot detection #####
-            result_frame0 = self.robot_detector.inference(frame0)
-            result_frame1 = self.robot_detector.inference(frame1)
+            # result_frame0 = self.robot_detector.inference(frame0)
+            # result_frame1 = self.robot_detector.inference(frame1)
 
-            points0 = self.robot_detector.get_keypoints(result_frame0)
-            points1 = self.robot_detector.get_keypoints(result_frame1)
+            # points0 = self.robot_detector.get_keypoints(result_frame0)
+            # points1 = self.robot_detector.get_keypoints(result_frame1)
 
-            robot_points_3d = self.robot_detector.triangulation(
-                result_frame0, result_frame1, self.Proj_matrix0, self.Proj_matrix1, points0, points1)
+            # robot_points_3d = self.robot_detector.triangulation(
+            #     result_frame0, result_frame1, self.Proj_matrix0, self.Proj_matrix1, points0, points1)
 
             # visualizing the 3d points
 
             self.open3d_visualizer.run_human(human_points_3d)
-            self.open3d_visualizer.run_robot(robot_points_3d)
+            # self.open3d_visualizer.run_robot(robot_points_3d)
 
             self.open3d_visualizer.update_open3d()
 
