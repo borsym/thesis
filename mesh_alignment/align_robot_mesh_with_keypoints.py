@@ -204,7 +204,7 @@ connections = [[
     13
 ]
 ]
-# visualize the nerf_robot_keypoints with matplotlib and use the connections
+# # visualize the nerf_robot_keypoints with matplotlib and use the connections
 # fig = plt.figure(figsize=(10, 8))
 # ax = fig.add_subplot(111, projection='3d')
 
@@ -705,28 +705,33 @@ def visualize(points):
 
 
 def my_last_hope():
-    mesh_vertices = np.asarray(robot_mesh.vertices)
-
-    # Calculate centroids
     centroid_robot_keypoints = np.mean(robot_keypoints, axis=0)
-    centroid_robot_mesh = np.mean(nerf_robot_keypoints, axis=0)
+    centroid_nerf_keypoints = np.mean(nerf_robot_keypoints, axis=0)
 
+    # Center the keypoints and mesh vertices by subtracting their respective centroids
     centered_keypoints = robot_keypoints - centroid_robot_keypoints
-    centered_mesh_vertices = nerf_robot_keypoints - centroid_robot_mesh
+    centered_mesh_vertex_cloud = mesh_vertex_cloud - centroid_nerf_keypoints
+    centered_nerf_keypoints = nerf_robot_keypoints - centroid_nerf_keypoints
 
-    mtx1, mtx2, disparity = procrustes(
-        centered_keypoints, centered_mesh_vertices)
+    # Perform Procrustes analysis
+    _, mtx2, _ = procrustes(centered_keypoints, centered_nerf_keypoints)
 
-    # Calculate the pairwise distances in the original datasets
+    # Apply the transformation from Procrustes analysis to the entire mesh
+    # Since mtx2 is the transformed nerf keypoints, we infer the transformation matrix
+    # This transformation includes the scaling and rotation needed
+    transformation_matrix = np.linalg.lstsq(
+        centered_nerf_keypoints, mtx2, rcond=None)[0]
+    transformed_mesh_vertex_cloud = centered_mesh_vertex_cloud @ transformation_matrix.T
 
-    scale_factor = 1.8
+    transformed_mesh_vertex_cloud *= 1.2
+    # Translate the transformed mesh vertices to match the robot keypoints centroid
+    transformed_mesh_vertex_cloud += centroid_robot_keypoints
 
-    transformed_mesh_vertices = mtx2 * scale_factor
+    print(transformed_mesh_vertex_cloud.shape)
 
-    # Translate the transformed mesh vertices to match the keypoints centroid
-    final_transformed_vertices = transformed_mesh_vertices + centroid_robot_keypoints
-
-    # visualize in matplotlib the transofmerd_mesh and the robot_keypoints
+    final_transformed_vertices = np.asarray(transformed_mesh_vertex_cloud)
+    final_transformed_vertices = final_transformed_vertices[::700, :]
+    # # visualize in matplotlib the transofmerd_mesh and the robot_keypoints
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
     # keep every 1000th points from the tnrasformed_mesh
