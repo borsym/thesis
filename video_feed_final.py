@@ -1,3 +1,4 @@
+import copy
 import open3d as o3d
 import cv2
 import threading
@@ -190,6 +191,11 @@ class Visualizer:
 
         self.visualizer = o3d.visualization.Visualizer()
         self.visualizer.create_window()
+        # ...
+
+        # Set the view direction and rotation for the camera
+
+        # ...
 
         self.person_skeleton_cloud = o3d.geometry.PointCloud()
         keypoint_color = [0, 1, 0]
@@ -217,21 +223,17 @@ class Visualizer:
         # TODO make this as the first step of the visualizetion instead of dicrectly writing here
         ##################
         ##################
-        transformation = self.align_mesh_to_keyponts(
-            self.first_robot_keypoints)
+        _, _, transformation = self.procrustes_mine(self.first_robot_keypoints, self.nerf_robot_keypoints,
+                                                    scaling=True, reflection='best')
+        initial_transformation_matrix = np.eye(4)
+        initial_transformation_matrix[:3,
+                                      :3] = transformation['rotation'] * transformation['scale']
+        initial_transformation_matrix[:3, 3] = transformation['translation']
 
-        self.nerf_robot_keypoints = np.dot(
-            self.nerf_robot_keypoints, transformation[:3, :3].T) + transformation[:3, 3]
-
-        self.robot_mesh.transform(transformation)
-
-        transformation_2 = self.calculate_icp(
-            self.nerf_robot_keypoints, self.first_robot_keypoints)
-
-        self.robot_mesh.transform(transformation_2)
-        self.nerf_robot_keypoints = np.dot(
-            self.nerf_robot_keypoints, transformation_2[:3, :3].T) + transformation_2[:3, 3]
-
+        # Apply the initial transformation to the mesh
+        self.robot_mesh.transform(initial_transformation_matrix)
+        self.previous_transfomation = np.linalg.inv(
+            initial_transformation_matrix)
         self.visualizer.add_geometry(mesh)
         self.visualizer.add_geometry(self.robot_mesh)
         self.visualizer.add_geometry(self.person_lines)
@@ -262,6 +264,30 @@ class Visualizer:
             [1, 0, 0])  # Red color for the arrow shaft
         self.visualizer.add_geometry(self.direction_robot_arrow_shaft)
         # self.visualizer.add_geometry(self.direction_robot_arrow_head)
+
+        view_control = self.visualizer.get_view_control()
+
+        # Set the front, lookat, up, and zoom parameters
+        camera_params = {
+            # Assuming the camera is looking along the negative Z-axis
+            "front": [4, 0, -1],
+            "lookat": [0, 0, 3],  # The point at which the camera is looking
+            # The "up" direction for the camera (here set to the negative Y-axis)
+            "up": [0, -1, 0],
+            "zoom": 0.02           # Zoom level
+        }
+
+        # Positive value to move "forward" towards the "lookat" point along the negative Z-axis
+        move_right = 3    # Positive value to move "right"
+
+        camera_params["lookat"][0] += move_right  # Move right along the X-axis
+        # camera_params["lookat"][2] -= move_forward
+
+        # Apply the camera parameters
+        view_control.set_front(camera_params["front"])
+        view_control.set_lookat(camera_params["lookat"])
+        view_control.set_up(camera_params["up"])
+        view_control.set_zoom(camera_params["zoom"])
 
     def update_arrow(self, start_point, direction_vector, object_type):
         # Update the arrow's shaft
@@ -367,6 +393,117 @@ class Visualizer:
             centroid_nerf_keypoints @ transformation_matrix
         return transform_4x4
 
+    def procrustes_mine(self, X, Y, scaling=True, reflection='best'):
+        """
+        A port of MATLAB's `procrustes` function to Numpy.
+
+        Procrustes analysis determines a linear transformation (translation,
+        reflection, orthogonal rotation and scaling) of the points in Y to best
+        conform them to the points in matrix X, using the sum of squared errors
+        as the goodness of fit criterion.
+
+            d, Z, [tform] = procrustes(X, Y)
+
+        Inputs:
+        ------------
+        X, Y    
+            matrices of target and input coordinates. they must have equal
+            numbers of  points (rows), but Y may have fewer dimensions
+            (columns) than X.
+
+        scaling 
+            if False, the scaling component of the transformation is forced
+            to 1
+
+        reflection
+            if 'best' (default), the transformation solution may or may not
+            include a reflection component, depending on which fits the data
+            best. setting reflection to True or False forces a solution with
+            reflection or no reflection respectively.
+
+        Outputs
+        ------------
+        d       
+            the residual sum of squared errors, normalized according to a
+            measure of the scale of X, ((X - X.mean(0))**2).sum()
+
+        Z
+            the matrix of transformed Y-values
+
+        tform   
+            a dict specifying the rotation, translation and scaling that
+            maps X --> Y
+
+        """
+
+        n, m = X.shape
+        ny, my = Y.shape
+
+        muX = X.mean(0)
+        muY = Y.mean(0)
+
+        X0 = X - muX
+        Y0 = Y - muY
+
+        ssX = (X0**2.).sum()
+        ssY = (Y0**2.).sum()
+
+        # centred Frobenius norm
+        normX = np.sqrt(ssX)
+        normY = np.sqrt(ssY)
+
+        # scale to equal (unit) norm
+        X0 /= normX
+        Y0 /= normY
+
+        if my < m:
+            Y0 = np.concatenate((Y0, np.zeros(n, m-my)), 0)
+
+        # optimum rotation matrix of Y
+        A = np.dot(X0.T, Y0)
+        U, s, Vt = np.linalg.svd(A, full_matrices=False)
+        V = Vt.T
+        T = np.dot(V, U.T)
+
+        if reflection != 'best':
+
+            # does the current solution use a reflection?
+            have_reflection = np.linalg.det(T) < 0
+
+            # if that's not what was specified, force another reflection
+            if reflection != have_reflection:
+                V[:, -1] *= -1
+                s[-1] *= -1
+                T = np.dot(V, U.T)
+
+        traceTA = s.sum()
+
+        if scaling:
+
+            # optimum scaling of Y
+            b = traceTA * normX / normY
+
+            # standarised distance between X and b*Y*T + c
+            d = 1 - traceTA**2
+
+            # transformed coords
+            Z = normX*traceTA*np.dot(Y0, T) + muX
+
+        else:
+            b = 1
+            d = 1 + ssY/ssX - 2 * traceTA * normY / normX
+            Z = normY*np.dot(Y0, T) + muX
+
+        # transformation matrix
+        if my < m:
+            T = T[:my, :]
+        c = muX - b*np.dot(muY, T)
+
+        # transformation values
+        tform = {'rotation': T, 'scale': b, 'translation': c}
+
+        return d, Z, tform
+
     def run_human(self, points_3d):
 
         ### 3d open visualization jon ##
@@ -376,16 +513,6 @@ class Visualizer:
 
         self.visualizer.update_geometry(self.person_skeleton_cloud)
         self.visualizer.update_geometry(self.person_lines)
-
-        # for point_idx, point in enumerate(range(17)):
-        #     if point_idx > len(self.person_skeleton_cloud.points):
-        #         sphere = self.sphere_list[point_idx]
-        #         self.update_sphere_position(sphere, np.array([0, 0, 0]))
-        #     else:
-        #         sphere = self.sphere_list[point_idx]
-        #         self.update_sphere_position(sphere, np.array(
-        #             self.person_skeleton_cloud.points[point_idx]))
-        #     self.visualizer.update_geometry(sphere)
 
     def run_robot(self, points_3d):
 
@@ -402,7 +529,7 @@ class Visualizer:
                 o3d.utility.Vector3dVector(nerf)),
             o3d.geometry.PointCloud(
                 o3d.utility.Vector3dVector(robot)),
-            max_correspondence_distance=0.3,
+            max_correspondence_distance=5,
             estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPoint(),
             criteria=o3d.pipelines.registration.ICPConvergenceCriteria(
                 max_iteration=200)
@@ -530,7 +657,7 @@ class HumanDetector:
 
 class RobotDetector:
     def __init__(self) -> None:
-        self.model = YOLO('D:/thesis/realtime_update/weights/best.pt')
+        self.model = YOLO('D:/thesis/realtime_update/weights/best_new.pt')
         self.skeleton = self.get_skeleton()
         self.previous_keypoints = None
         self.current_keypoints = None
@@ -678,27 +805,33 @@ class VideoManager:
                 # Update the arrow with the calculated start point and direction vector
                 self.open3d_visualizer.update_arrow(
                     start_point, direction_vector, "robot")
-            if len(robot_points_3d) > 0:
-                z_scores = np.abs(zscore(robot_points_3d, axis=0))
-                threshold = 2
-                if np.any(z_scores > threshold):
-                    continue  # skip the frame
-                # smoothed_keypoints_data = savgol_filter(
-                #     robot_points_3d, window_length=5, polyorder=2, axis=0)
-                # print("smoothed_keypoints_data", smoothed_keypoints_data)
-                # print("robot_points_3d", robot_points_3d)
-                transformation = self.open3d_visualizer.calculate_icp(
-                    self.open3d_visualizer.nerf_robot_keypoints, robot_points_3d)
-                prev_nerf_robot_keypoints = self.open3d_visualizer.nerf_robot_keypoints
-                self.open3d_visualizer.nerf_robot_keypoints = np.dot(
-                    prev_nerf_robot_keypoints, transformation[:3, :3].T) + transformation[:3, 3]
-
-                self.open3d_visualizer.run_robot(robot_points_3d)
-                self.open3d_visualizer.robot_mesh.transform(transformation)
-            self.open3d_visualizer.visualizer.update_geometry(
-                self.open3d_visualizer.robot_mesh)
 
             self.open3d_visualizer.run_human(human_points_3d)
+
+            if len(robot_points_3d) == 0:
+                continue
+
+            _, _, transformation = self.open3d_visualizer.procrustes_mine(
+                robot_points_3d, self.open3d_visualizer.nerf_robot_keypoints, scaling=True, reflection='best')
+
+            initial_transformation_matrix = np.eye(4)
+            initial_transformation_matrix[:3,
+                                          :3] = transformation['rotation'] * transformation['scale']
+            initial_transformation_matrix[:3,
+                                          3] = transformation['translation']
+            # remove previous transformation
+            self.open3d_visualizer.robot_mesh.transform(
+                self.open3d_visualizer.previous_transfomation)
+            # add new transformation
+            self.open3d_visualizer.robot_mesh.transform(
+                initial_transformation_matrix)
+            # save the previous transformation inverse
+            self.open3d_visualizer.previous_transfomation = np.linalg.inv(
+                initial_transformation_matrix)
+
+            self.open3d_visualizer.visualizer.update_geometry(
+                self.open3d_visualizer.robot_mesh)
+            self.open3d_visualizer.run_robot(robot_points_3d)
 
             self.open3d_visualizer.update_open3d()
 
