@@ -10,8 +10,6 @@ import math
 from PIL import Image
 
 
-# TODO ne zarjam be
-
 
 class CameraManager:
     def __init__(self, max_cameras=2):

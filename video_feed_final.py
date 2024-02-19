@@ -20,13 +20,27 @@ from mmpose.structures import merge_data_samples, split_instances
 
 from ultralytics import YOLO
 
-import matplotlib.pyplot as plt
-from scipy.spatial import procrustes
-from scipy.signal import savgol_filter
 from scipy.stats import zscore
 
 
 def calibrate_intrinsics(image0, image1, chessboard_size=(9, 6), square_size=0.07):
+    """
+    Calibrates the intrinsic camera parameters using chessboard images.
+
+    Args:
+        image0 (numpy.ndarray): Image from camera 1.
+        image1 (numpy.ndarray): Image from camera 2.
+        chessboard_size (tuple, optional): Number of inner corners (width, height) of the chessboard. Defaults to (9, 6).
+        square_size (float, optional): Size of each square on the chessboard in real world coordinates. Defaults to 0.07.
+
+    Returns:
+        tuple: A tuple containing the intrinsic camera parameters for camera 1 and camera 2.
+               The tuple has the following format: (mtx0_int, dist0_int, mtx1_int, dist1_int).
+               - mtx0_int (numpy.ndarray): Camera matrix for camera 1.
+               - dist0_int (numpy.ndarray): Distortion coefficients for camera 1.
+               - mtx1_int (numpy.ndarray): Camera matrix for camera 2.
+               - dist1_int (numpy.ndarray): Distortion coefficients for camera 2.
+    """
     square_size = square_size  # 70 mm
     # Number of inner corners (width, height)
     chessboard_size = chessboard_size
@@ -70,6 +84,17 @@ def calibrate_intrinsics(image0, image1, chessboard_size=(9, 6), square_size=0.0
 
 
 def calibrate_extrinsics(camera_int_params, chessboard_size=(9, 6), square_size=70):
+    """
+    Calibrates the extrinsic parameters of a stereo camera system using a chessboard pattern.
+
+    Args:
+        camera_int_params (list): List of camera intrinsic parameters [mtx0_int, dist0_int, mtx1_int, dist1_int].
+        chessboard_size (tuple, optional): Number of inner corners per a chessboard row and column. Defaults to (9, 6).
+        square_size (int, optional): Size of a chessboard square in mm. Defaults to 70.
+
+    Returns:
+        tuple: Tuple containing the rotation matrix (R) and translation vector (T) of the stereo camera system.
+    """
     mtx0_int = camera_int_params[0]
     mtx1_int = camera_int_params[2]
     dist0_int = camera_int_params[1]
@@ -131,6 +156,28 @@ def calibrate_extrinsics(camera_int_params, chessboard_size=(9, 6), square_size=
 
 
 class Visualizer:
+    """
+    A class for visualizing 3D objects and skeletons.
+
+    Attributes:
+    - mesh: The triangle mesh object representing the environment.
+    - robot_mesh: The triangle mesh object representing the robot.
+    - nerf_robot_keypoints: The keypoints of the robot in the NeRF coordinate system.
+    - first_robot_keypoints: The initial keypoints of the robot.
+    - visualizer: The Open3D visualizer object.
+    - connections: The connections between keypoints in the skeleton.
+    - person_skeleton_cloud: The point cloud object representing the person's skeleton.
+    - person_lines: The line set object representing the connections between keypoints in the person's skeleton.
+    - robot_conections: The connections between keypoints in the robot's skeleton.
+    - robot_skeleton_cloud: The point cloud object representing the robot's skeleton.
+    - robot_lines: The line set object representing the connections between keypoints in the robot's skeleton.
+    - previous_transfomation: The previous transformation matrix applied to the robot mesh.
+    - direction_human_arrow_shaft: The line set object representing the shaft of the arrow indicating the direction of the person.
+    - direction_human_arrow_head: The triangle mesh object representing the head of the arrow indicating the direction of the person.
+    - direction_robot_arrow_shaft: The line set object representing the shaft of the arrow indicating the direction of the robot.
+    - direction_robot_arrow_head: The triangle mesh object representing the head of the arrow indicating the direction of the robot.
+    """
+
     def __init__(self) -> None:
         mesh = o3d.io.read_triangle_mesh(
             "D:/thesis/realtime_update/meshes/rotated_beanbag.ply")
@@ -191,17 +238,13 @@ class Visualizer:
 
         self.visualizer = o3d.visualization.Visualizer()
         self.visualizer.create_window()
-        # ...
 
-        # Set the view direction and rotation for the camera
-
-        # ...
-
-        self.person_skeleton_cloud = o3d.geometry.PointCloud()
-        keypoint_color = [0, 1, 0]
-        self.person_skeleton_cloud.paint_uniform_color(keypoint_color)
         self.connections = [(15, 13), (13, 11), (16, 14), (14, 12), (11, 12), (5, 11), (6, 12), (5, 6), (5, 7), (6, 8),
                             (7, 9), (8, 10), (1, 2), (0, 1), (0, 2), (1, 3), (2, 4), (3, 5), (4, 6)]
+
+        self.person_skeleton_cloud = o3d.geometry.PointCloud()
+        self.person_skeleton_cloud.paint_uniform_color([0, 1, 0])
+
         self.person_lines = o3d.geometry.LineSet()
         self.person_lines.points = self.person_skeleton_cloud.points
         self.person_lines.lines = o3d.utility.Vector2iVector(self.connections)
@@ -209,8 +252,7 @@ class Visualizer:
 
         self.robot_conections = self.get_skeleton_connection_robot()
         self.robot_skeleton_cloud = o3d.geometry.PointCloud()
-        keypoint_color = [0, 0, 1]
-        self.robot_skeleton_cloud.paint_uniform_color(keypoint_color)
+        self.robot_skeleton_cloud.paint_uniform_color([0, 0, 1])
 
         self.robot_lines = o3d.geometry.LineSet()
         self.robot_lines.points = self.robot_skeleton_cloud.points
@@ -218,11 +260,6 @@ class Visualizer:
             self.robot_conections)
         self.robot_lines.paint_uniform_color([0, 0, 1])
 
-        ##################
-        ##################
-        # TODO make this as the first step of the visualizetion instead of dicrectly writing here
-        ##################
-        ##################
         _, _, transformation = self.procrustes_mine(self.first_robot_keypoints, self.nerf_robot_keypoints,
                                                     scaling=True, reflection='best')
         initial_transformation_matrix = np.eye(4)
@@ -271,18 +308,11 @@ class Visualizer:
         camera_params = {
             # Assuming the camera is looking along the negative Z-axis
             "front": [4, 0, -1],
-            "lookat": [0, 0, 3],  # The point at which the camera is looking
+            "lookat": [3, 0, 3],  # The point at which the camera is looking
             # The "up" direction for the camera (here set to the negative Y-axis)
             "up": [0, -1, 0],
             "zoom": 0.02           # Zoom level
         }
-
-        # Positive value to move "forward" towards the "lookat" point along the negative Z-axis
-        move_right = 3    # Positive value to move "right"
-
-        camera_params["lookat"][0] += move_right  # Move right along the X-axis
-        # camera_params["lookat"][2] -= move_forward
-
         # Apply the camera parameters
         view_control.set_front(camera_params["front"])
         view_control.set_lookat(camera_params["lookat"])
@@ -290,6 +320,17 @@ class Visualizer:
         view_control.set_zoom(camera_params["zoom"])
 
     def update_arrow(self, start_point, direction_vector, object_type):
+        """
+        Update the arrow's position and orientation based on the given start point, direction vector, and object type.
+
+        Parameters:
+        start_point (numpy.ndarray): The starting point of the arrow.
+        direction_vector (numpy.ndarray): The direction vector of the arrow.
+        object_type (str): The type of the object associated with the arrow.
+
+        Returns:
+        None
+        """
         # Update the arrow's shaft
         scaling_factor = 5  # Adjust the scaling factor as needed
         end_point = start_point + scaling_factor * direction_vector
@@ -309,7 +350,7 @@ class Visualizer:
         # Update the arrow's head
         # Place the cone at the end of the shaft and rotate it to point in the direction of the vector
         transformation_matrix = self.get_arrow_transformation_matrix(
-            end_point, direction_vector)  # TODO start/end
+            end_point, direction_vector)
         self.direction_human_arrow_head.transform(
             transformation_matrix)
 
@@ -323,6 +364,16 @@ class Visualizer:
             self.visualizer.update_geometry(self.direction_robot_arrow_head)
 
     def get_arrow_transformation_matrix(self, end_point, direction_vector):
+        """
+        Calculates the transformation matrix for an arrow given the end point and direction vector.
+
+        Parameters:
+            end_point (numpy.ndarray): The coordinates of the arrow's end point.
+            direction_vector (numpy.ndarray): The direction vector of the arrow.
+
+        Returns:
+            numpy.ndarray: The transformation matrix representing the arrow's rotation and translation.
+        """
         # Normalize the direction vector
         direction = direction_vector / np.linalg.norm(direction_vector)
 
@@ -344,6 +395,12 @@ class Visualizer:
         return transformation_matrix
 
     def get_skeleton_connection_robot(self):
+        """
+        Retrieves the skeleton connections for the robot from a JSON file.
+
+        Returns:
+            list: A list of skeleton connections, where each connection is represented as a pair of indices.
+        """
         with open("D:/thesis/realtime_update/robot-keypoints-connection.json", 'r') as file:
             annotations_data = json.load(file)
         skeleton_connections = annotations_data['skeleton']
@@ -353,6 +410,9 @@ class Visualizer:
         return skeleton_connections
 
     def update_open3d(self):
+        """
+        Updates the Open3D visualizer by polling events and updating the renderer.
+        """
         self.visualizer.poll_events()
         self.visualizer.update_renderer()
 
@@ -367,31 +427,6 @@ class Visualizer:
         # Update the mesh (important for visualization)
         sphere.compute_vertex_normals()
         return sphere
-
-    def align_mesh_to_keyponts(self, keypoints):
-        centroid_robot_keypoints = np.mean(keypoints, axis=0)
-        centroid_nerf_keypoints = np.mean(self.nerf_robot_keypoints, axis=0)
-
-        centered_keypoints = keypoints - centroid_robot_keypoints
-        centered_nerf_keypoints = self.nerf_robot_keypoints - centroid_nerf_keypoints
-
-        # Perform Procrustes analysis
-        _, mtx2, _ = procrustes(centered_keypoints, centered_nerf_keypoints)
-
-        transformation_matrix = np.linalg.lstsq(
-            centered_nerf_keypoints, mtx2, rcond=None)[0]
-        # transformed_mesh_vertex_cloud = centered_mesh_vertex_cloud @ transformation_matrix.T
-
-        # transformed_mesh_vertex_cloud *= 1.2
-
-        # Translate the transformed mesh vertices to match the robot keypoints centroid
-        transform_4x4 = np.eye(4)
-        scale = [1.6, 1.9, .9]
-        # * scale[:, np.newaxis]  # Apply scale to each axis
-        transform_4x4[:3, :3] = transformation_matrix * scale
-        transform_4x4[:3, 3] = centroid_robot_keypoints - \
-            centroid_nerf_keypoints @ transformation_matrix
-        return transform_4x4
 
     def procrustes_mine(self, X, Y, scaling=True, reflection='best'):
         """
@@ -505,8 +540,15 @@ class Visualizer:
         return d, Z, tform
 
     def run_human(self, points_3d):
+        """
+        Updates the visualization of the human skeleton in 3D.
 
-        ### 3d open visualization jon ##
+        Args:
+            points_3d (list): List of 3D points representing the human skeleton.
+
+        Returns:
+            None
+        """
         self.person_skeleton_cloud.points = o3d.utility.Vector3dVector(
             points_3d)
         self.person_lines.points = o3d.utility.Vector3dVector(points_3d)
@@ -515,7 +557,15 @@ class Visualizer:
         self.visualizer.update_geometry(self.person_lines)
 
     def run_robot(self, points_3d):
+        """
+        Update the robot's skeleton cloud and lines with the given 3D points.
 
+        Args:
+            points_3d (List[List[float]]): The 3D points representing the robot's skeleton.
+
+        Returns:
+            None
+        """
         self.robot_skeleton_cloud.points = o3d.utility.Vector3dVector(
             points_3d)
         self.robot_lines.points = o3d.utility.Vector3dVector(points_3d)
@@ -523,22 +573,16 @@ class Visualizer:
         self.visualizer.update_geometry(self.robot_skeleton_cloud)
         self.visualizer.update_geometry(self.robot_lines)
 
-    def calculate_icp(self, nerf, robot):
-        reg_p2p = o3d.pipelines.registration.registration_icp(
-            o3d.geometry.PointCloud(
-                o3d.utility.Vector3dVector(nerf)),
-            o3d.geometry.PointCloud(
-                o3d.utility.Vector3dVector(robot)),
-            max_correspondence_distance=5,
-            estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPoint(),
-            criteria=o3d.pipelines.registration.ICPConvergenceCriteria(
-                max_iteration=200)
-        )
-
-        return reg_p2p.transformation
-
 
 class HumanDetector:
+    """
+    Class for detecting and tracking human poses in a video feed.
+
+    Args:
+        camera_int_params (dict): Camera intrinsic parameters.
+        camera_ext_params (dict): Camera extrinsic parameters.
+    """
+
     def __init__(self, camera_int_params, camera_ext_params):
         self.camera_int_params = camera_int_params
         self.camera_ext_params = camera_ext_params
@@ -579,10 +623,18 @@ class HumanDetector:
         self.current_keypoints = None
 
     def select_person(self, image):
+        """
+        Selects bounding boxes of persons detected in the given image.
+
+        Args:
+            image (numpy.ndarray): The input image.
+
+        Returns:
+            numpy.ndarray: The selected bounding boxes of persons.
+        """
         det_result = inference_detector(self.detection_model, image)
         pred_instance = det_result.pred_instances.cpu().numpy()
 
-        # put the prediction to the last column  1511      224.36        1920      1189.2     0.80981]
         bboxes = np.concatenate(
             (pred_instance.bboxes, pred_instance.scores[:, None]), axis=1)
         # select human bboxes
@@ -592,10 +644,33 @@ class HumanDetector:
         return bboxes[nms(bboxes, 0.3), :4]
 
     def mark_kp(self, image, x, y, color=(0, 0, 255)):
+        """
+        Marks a keypoint on the given image at the specified coordinates.
+
+        Args:
+            image (numpy.ndarray): The image on which to mark the keypoint.
+            x (float): The x-coordinate of the keypoint.
+            y (float): The y-coordinate of the keypoint.
+            color (tuple, optional): The color of the marker. Defaults to (0, 0, 255).
+
+        Returns:
+            None
+        """
         cv2.circle(image, (int(round(x)), int(round(y))),
                    10, color=color, thickness=cv2.FILLED)
 
     def mark_image(self, image, results, rgb):
+        """
+        Marks the keypoints and draws connections on the given image based on the pose estimation results.
+
+        Args:
+            image (numpy.ndarray): The input image to mark keypoints on.
+            results (list): The pose estimation results.
+            rgb (tuple): The RGB color tuple for drawing connections.
+
+        Returns:
+            numpy.ndarray: The image with marked keypoints and connections.
+        """
         for pose in results[0].pred_instances.keypoints:
             for kp in pose:
                 x, y = kp
@@ -606,6 +681,17 @@ class HumanDetector:
         return image
 
     def inference(self, image0, image1):
+        """
+        Perform inference on two input images.
+
+        Args:
+            image0 (numpy.ndarray): The first input image.
+            image1 (numpy.ndarray): The second input image.
+
+        Returns:
+            tuple: A tuple containing the inference results for the first image, the inference results for the second image,
+                   the marked first image, and the marked second image.
+        """
         init_default_scope('mmdet')
         person_bboxes0 = self.select_person(image0)
         person_bboxes1 = self.select_person(image1)
@@ -613,19 +699,27 @@ class HumanDetector:
         init_default_scope('mmpose')
 
         if person_bboxes0 == [] or person_bboxes1 == []:
-            print("return")
+            print("no person found")
             return None, None
 
         results0 = inference_topdown(self.model, image0, person_bboxes0)
         results1 = inference_topdown(self.model, image1, person_bboxes1)
 
-        # return image
         self.mark_image(image0, results0, (0, 255, 0))
         self.mark_image(image1, results1, (0, 255, 0))
 
         return results0, results1, image0, image1
 
     def get_pose_xyz(self, frame):
+        """
+        Converts the frame coordinates to pose coordinates in meters.
+
+        Args:
+            frame (numpy.ndarray): The frame coordinates in millimeters.
+
+        Returns:
+            numpy.ndarray: The pose coordinates in meters.
+        """
         pose_set = []
         for x, y, z in zip(frame[0], frame[1], frame[2]):
             # divide by 1000 if camera focal length is given in mm
@@ -637,6 +731,19 @@ class HumanDetector:
             self.all_points_3d, dtype=object))
 
     def triangulation(self, results0, results1, P0, P1):
+        """
+        Perform triangulation to estimate 3D coordinates of keypoints.
+
+        Args:
+            results0 (list): List of pose estimation results from the left camera.
+            results1 (list): List of pose estimation results from the right camera.
+            P0 (numpy.ndarray): Projection matrix of the left camera.
+            P1 (numpy.ndarray): Projection matrix of the right camera.
+
+        Returns:
+            numpy.ndarray: Array of 3D coordinates of keypoints.
+
+        """
         left_pose = max(results0[0].pred_instances,
                         key=lambda item: np.mean(item.keypoint_scores))
         right_pose = max(results1[0].pred_instances,
@@ -647,8 +754,6 @@ class HumanDetector:
 
         points_3d = points_4d_hom[:3, :] / points_4d_hom[3, :]
         points_3d = self.get_pose_xyz(points_3d)
-        # self.all_points_3d.append(np.array(points_3d))
-        # self.save_to_npy()
         if self.current_keypoints is not None:
             self.previous_keypoints = self.current_keypoints
         self.current_keypoints = points_3d
@@ -656,6 +761,16 @@ class HumanDetector:
 
 
 class RobotDetector:
+    """
+    Class for detecting and tracking robots in a video feed.
+
+    Attributes:
+        model (YOLO): The object detection model used for robot detection.
+        skeleton (list): The skeleton connections between robot keypoints.
+        previous_keypoints (numpy.ndarray): The keypoints of the previous frame.
+        current_keypoints (numpy.ndarray): The keypoints of the current frame.
+    """
+
     def __init__(self) -> None:
         self.model = YOLO('D:/thesis/realtime_update/weights/best_new.pt')
         self.skeleton = self.get_skeleton()
@@ -663,15 +778,29 @@ class RobotDetector:
         self.current_keypoints = None
 
     def get_skeleton(self):
+        """
+        Retrieves the skeleton data from the 'robot-keypoints-connection.json' file.
+
+        Returns:
+            dict: The skeleton data.
+        """
         with open("D:/thesis/realtime_update/robot-keypoints-connection.json", 'r') as file:
             annotations_data = json.load(file)
         return annotations_data['skeleton']
 
     def inference(self, image):
-        result = self.model(image)
-        return result
+        return self.model(image)
 
     def get_keypoints(self, result):
+        """
+        Get the xy-coordinates of the keypoints from the given result.
+
+        Args:
+            result (list): List of results containing keypoints.
+
+        Returns:
+            list: List of xy-coordinates of the keypoints.
+        """
         return result[0].keypoints.xy[0]
 
     def draw_keypoints(self, image, points):
@@ -697,6 +826,15 @@ class RobotDetector:
         return image
 
     def get_pose_xyz(self, frame):
+        """
+        Converts the frame coordinates to pose coordinates in meters.
+
+        Args:
+            frame (numpy.ndarray): The frame coordinates in millimeters.
+
+        Returns:
+            numpy.ndarray: The pose coordinates in meters.
+        """
         pose_set = []
         for x, y, z in zip(frame[0], frame[1], frame[2]):
             # divide by 1000 if camera focal length is given in mm
@@ -704,6 +842,20 @@ class RobotDetector:
         return np.asarray(pose_set)
 
     def triangulation(self, results0, results1, P0, P1, points0, points1):
+        """
+        Performs triangulation to estimate the 3D coordinates of keypoints in a stereo vision system.
+
+        Args:
+            results0 (list): List of keypoints detected in the left image.
+            results1 (list): List of keypoints detected in the right image.
+            P0 (numpy.ndarray): Projection matrix of the left camera.
+            P1 (numpy.ndarray): Projection matrix of the right camera.
+            points0 (list): List of 2D coordinates of keypoints in the left image.
+            points1 (list): List of 2D coordinates of keypoints in the right image.
+
+        Returns:
+            list: List of 3D coordinates of keypoints in the world coordinate system.
+        """
         if len(points0) == 0 or len(points1) == 0:
             return []
 
@@ -726,6 +878,14 @@ class RobotDetector:
 
 
 class VideoManager:
+    """
+    Initializes the video feed object.
+
+    Args:
+        camera_int_params (dict): Dictionary containing camera intrinsic parameters.
+        camera_ext_params (dict): Dictionary containing camera extrinsic parameters.
+    """
+
     def __init__(self, camera_int_params, camera_ext_params):
         # Initialization code remains mostly the same...
         # Initialize your models and visualizer here as before
